@@ -48,15 +48,15 @@ def configureGitHubAuthorizationStrategy = { clientId, clientSecret, admins, org
 
     // https://github.com/jenkinsci/github-oauth-plugin/blob/master/src/main/java/org/jenkinsci/plugins/GithubAuthorizationStrategy.java
     def githubAuthorizationStrategy = new GithubAuthorizationStrategy(
-            admins,    /*adminUserNames*/
-            false,     /*authenticatedUserReadPermission*/
-            true,      /*useRepositoryPermissions*/
-            false,     /*authenticatedUserCreateJobPermission*/
-            orgNames,  /*organizationNames*/
-            true,      /*allowGithubWebHookPermission*/
-            false,     /*allowCcTrayPermission*/
-            false,     /*allowAnonymousReadPermission*/
-            false      /*allowAnonymousJobStatusPermission*/
+            admins,    // adminUserNames
+            false,     // authenticatedUserReadPermission
+            true,      // useRepositoryPermissions
+            false,     // authenticatedUserCreateJobPermission
+            orgNames,  // organizationNames
+            true,      // allowGithubWebHookPermission
+            false,     // allowCcTrayPermission
+            false,     // allowAnonymousReadPermission
+            false      // allowAnonymousJobStatusPermission
     )
 
     jenkins.setSecurityRealm(githubSecurityRealm)

@@ -1,3 +1,4 @@
 build-harness/
 .idea
 *.iml
+/.project

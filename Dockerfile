@@ -1,5 +1,5 @@
 # https://hub.docker.com/r/jenkins/jenkins/tags/
-FROM jenkins/jenkins:2.147-alpine
+FROM jenkins/jenkins:lts-alpine
 
 USER root
 
@@ -26,9 +26,9 @@ RUN /usr/local/bin/install-plugins.sh < /usr/share/jenkins/ref/plugins.txt
 
 # Setup Jenkins initial admin user, security mode (Matrix), and the number of job executors
 # Many other Jenkins configurations could be done from the Groovy script
-COPY init.groovy /usr/share/jenkins/ref/init.groovy.d/
+COPY init.groovy.d/init.groovy /usr/share/jenkins/ref/init.groovy.d/
 
-# Configure `Amazon EC2` plugin to start slaves on demand
-COPY init-ec2.groovy /usr/share/jenkins/ref/init.groovy.d/
+# Configure `Amazon EC2` plugin to start builders on demand
+COPY init.groovy.d/init-ec2.groovy /usr/share/jenkins/ref/init.groovy.d/
 
 EXPOSE 8080
