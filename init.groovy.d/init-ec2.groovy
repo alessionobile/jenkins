@@ -1,117 +1,129 @@
 #!groovy
 
 import com.amazonaws.services.ec2.model.*
+import com.cloudbees.plugins.credentials.domains.Domain
+import com.cloudbees.jenkins.plugins.sshcredentials.impl.BasicSSHUserPrivateKey
+import com.cloudbees.plugins.credentials.CredentialsScope
 import hudson.model.*
 import hudson.plugins.ec2.*
 import jenkins.model.*
 
 println "init-ec2.groovy: Starting..."
 
-def instance = Jenkins.getInstance()
-def env = System.getenv()
+// parameters
+def SlaveTemplateParameters = [
+  ami:                      env.JENKINS_BUILDER_AMI_ID,
+  associatePublicIp:        false,
+  connectBySSHProcess:      true,
+  connectUsingPublicIp:     false,
+  customDeviceMapping:      '',
+  deleteRootOnTermination:  true,
+  description:              'Jenkins Builder',
+  ebsOptimized:             false,
+  iamInstanceProfile:       env.JENKINS_BUILDER_INSTANCE_PROFILE_ARN ?: '',
+  idleTerminationMinutes:   env.JENKINS_BUILDER_IDLE_TERMINATION_MINUTES ?: '30',
+  initScript:               env.JENKINS_BUILDER_INIT_SCRIPT ?: '',
+  instanceCapStr:           env.JENKINS_BUILDER_INSTANCE_CAP,
+  jvmopts:                  '',
+  labelString:              'aws.ec2.jenkins.builder',
+  launchTimeoutStr:         env.JENKINS_BUILDER_LAUNCH_TIMEOUT_SECONDS ?: '300',
+  numExecutors:             env.JENKINS_BUILDER_NUM_EXECUTORS ?: '4',
+  remoteAdmin:              env.JENKINS_BUILDER_REMOTE_ADMIN ?: 'root',
+  remoteFS:                 '',
+  securityGroups:           env.JENKINS_BUILDER_SECURITY_GROUPS,
+  stopOnTerminate:          false,
+  subnetId:                 env.JENKINS_BUILDER_SUBNET_ID,
+  tags:                     new EC2Tag('Name', cloud_name),
+  tmpDir:                   '',
+  type:                     env.JENKINS_BUILDER_INSTANCE_TYPE ?: 't2.small',
+  useDedicatedTenancy:      false,
+  useEphemeralDevices:      true,
+  usePrivateDnsName:        true,
+  userData:                 env.JENKINS_BUILDER_USER_DATA ?: '',
+  zone:                     env.JENKINS_BUILDER_REGION + 'a'
+]
 
-def cloud_name = env.JENKINS_SLAVE_CLOUD_NAME
-def region = env.JENKINS_SLAVE_REGION
-def instance_cap = env.JENKINS_SLAVE_INSTANCE_CAP
-def ami_id = env.JENKINS_SLAVE_AMI_ID
-def security_groups = env.JENKINS_SLAVE_SECURITY_GROUPS
-def subnet_id = env.JENKINS_SLAVE_SUBNET_ID
-def instance_profile_arn = env.JENKINS_SLAVE_INSTANCE_PROFILE_ARN ?: ''
-def instance_type = env.JENKINS_SLAVE_INSTANCE_TYPE ?: 't2.small'
-def number_of_executors = env.JENKINS_SLAVE_NUM_EXECUTORS ?: '4'
-def init_script = env.JENKINS_SLAVE_INIT_SCRIPT ?: ''
-def user_data = env.JENKINS_SLAVE_USER_DATA ?: ''
-def remote_admin = env.JENKINS_SLAVE_REMOTE_ADMIN ?: 'root'
-def idle_termination_minutes = env.JENKINS_SLAVE_IDLE_TERMINATION_MINUTES ?: '30'
-def launch_timeout_seconds = env.JENKINS_SLAVE_LAUNCH_TIMEOUT_SECONDS ?: '300'
-def private_key = env.JENKINS_SLAVE_PRIVATE_KEY ? new String(env.JENKINS_SLAVE_PRIVATE_KEY.decodeBase64()) : ''
-def stop_on_idle_timeout = env.JENKINS_SLAVE_STOP_ON_IDLE_TIMEOUT ? env.JENKINS_SLAVE_STOP_ON_IDLE_TIMEOUT.toBoolean() : true
-def ec2_tags = [new EC2Tag('Name', cloud_name)]
+def AmazonEC2CloudParameters = [
+  cloudName:      env.JENKINS_BUILDER_CLOUD_NAME,
+  credentialsId:  'jenkins-builder-key',
+  instanceCapStr: env.JENKINS_BUILDER_INSTANCE_CAP,
+  privateKey:     env.JENKINS_BUILDER_PRIVATE_KEY ? new String(env.JENKINS_BUILDER_PRIVATE_KEY.decodeBase64()) : '',
+  region:         env.JENKINS_BUILDER_REGION,
+  useInstanceProfileForCredentials: false
+]
 
-SpotConfiguration spot_config = null
-AMITypeData ami_type = null
-
-
-def slave_template = new SlaveTemplate(
-        // String ami
-        ami_id,
-        // String zone
-        '',
-        // SpotConfiguration spotConfig
-        spot_config,
-        // String securityGroups
-        security_groups,
-        // String remoteFS
-        '',
-        // InstanceType type
-        InstanceType.fromValue(instance_type),
-        // boolean ebsOptimized
-        false,
-        // String labelString
-        cloud_name,
-        // Node.Mode mode
-        Node.Mode.NORMAL,
-        // String description
-        cloud_name,
-        // String initScript
-        init_script,
-        // String tmpDir
-        '',
-        // String userData
-        user_data,
-        // String numExecutors
-        number_of_executors,
-        // String remoteAdmin
-        remote_admin,
-        // AMITypeData
-        ami_type,
-        // String jvmopts
-        '',
-        // boolean stopOnIdleTimeout
-        stop_on_idle_timeout,
-        // String subnetId
-        subnet_id,
-        // List<EC2Tag> tags
-        ec2_tags,
-        // String idleTerminationMinutes
-        idle_termination_minutes,
-        // boolean usePrivateDnsName
-        true,
-        // String instanceCapStr
-        instance_cap,
-        // String iamInstanceProfile
-        instance_profile_arn,
-        // boolean useEphemeralDevices
-        true,
-        // boolean useDedicatedTenancy
-        false,
-        // String launchTimeoutStr
-        launch_timeout_seconds,
-        // boolean associatePublicIp
-        false,
-        // String customDeviceMapping
-        '',
-        // boolean connectBySSHProcess
-        true
+SlaveTemplate slaveTemplate = new SlaveTemplate(
+  SlaveTemplateParameters.ami,
+  SlaveTemplateParameters.zone,
+  null,
+  SlaveTemplateParameters.securityGroups,
+  SlaveTemplateParameters.remoteFS,
+  InstanceType.fromValue(SlaveTemplateParameters.type),
+  SlaveTemplateParameters.ebsOptimized,
+  SlaveTemplateParameters.labelString,
+  Node.Mode.NORMAL,
+  SlaveTemplateParameters.description,
+  SlaveTemplateParameters.initScript,
+  SlaveTemplateParameters.tmpDir,
+  SlaveTemplateParameters.userData,
+  SlaveTemplateParameters.numExecutors,
+  SlaveTemplateParameters.remoteAdmin,
+  new UnixData(null, null, null, null),
+  SlaveTemplateParameters.jvmopts,
+  SlaveTemplateParameters.stopOnTerminate,
+  SlaveTemplateParameters.subnetId,
+  [SlaveTemplateParameters.tags],
+  SlaveTemplateParameters.idleTerminationMinutes,
+  SlaveTemplateParameters.usePrivateDnsName,
+  SlaveTemplateParameters.instanceCapStr,
+  SlaveTemplateParameters.iamInstanceProfile,
+  SlaveTemplateParameters.deleteRootOnTermination,
+  SlaveTemplateParameters.useEphemeralDevices,
+  SlaveTemplateParameters.useDedicatedTenancy,
+  SlaveTemplateParameters.launchTimeoutStr,
+  SlaveTemplateParameters.associatePublicIp,
+  SlaveTemplateParameters.customDeviceMapping,
+  SlaveTemplateParameters.connectBySSHProcess,
+  SlaveTemplateParameters.connectUsingPublicIp
 )
 
-def ec2_cloud = new AmazonEC2Cloud(
-        // String cloudName
-        cloud_name,
-        // boolean useInstanceProfileForCredentials
-        true,
-        // String credentialsId
-        '',
-        // String region
-        region,
-        // String privateKey
-        private_key,
-        // String instanceCapStr
-        instance_cap,
-        // List<SlaveTemplate> templates
-        [slave_template]
+AmazonEC2Cloud amazonEC2Cloud = new AmazonEC2Cloud(
+  AmazonEC2CloudParameters.cloudName,
+  AmazonEC2CloudParameters.useInstanceProfileForCredentials,
+  AmazonEC2CloudParameters.credentialsId,
+  AmazonEC2CloudParameters.region,
+  AmazonEC2CloudParameters.privateKey,
+  AmazonEC2CloudParameters.instanceCapStr,
+  [slaveTemplate],
+  '',
+  ''
 )
 
-instance.clouds.clear()
-instance.clouds.add(ec2_cloud)
+// get Jenkins instance
+Jenkins jenkins = Jenkins.getInstance()
+
+// get credentials domain
+def domain = Domain.global()
+
+// get credentials store
+def store = jenkins.getExtensionList('com.cloudbees.plugins.credentials.SystemCredentialsProvider')[0].getStore()
+
+privateKey = new BasicSSHUserPrivateKey.DirectEntryPrivateKeySource(AmazonEC2CloudParameters.privateKey)
+credentials = new BasicSSHUserPrivateKey(
+  CredentialsScope.GLOBAL,
+  AmazonEC2CloudParameters.credentialsId,
+  SlaveTemplateParameters.remoteAdmin,
+  privateKey,
+  "",
+  "Jenkins Builder Key"
+)
+
+// add credential to store
+store.addCredentials(domain, credentials)
+
+// add cloud configuration to Jenkins
+jenkins.clouds.add(amazonEC2Cloud)
+
+// save current Jenkins state to disk
+jenkins.save()
 println "init-ec2.groovy: Configured EC2 cloud"
