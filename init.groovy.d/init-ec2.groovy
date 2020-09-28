@@ -22,6 +22,8 @@ def SlaveTemplateParameters = [
   ebsOptimized:             false,
   iamInstanceProfile:       env.JENKINS_BUILDER_INSTANCE_PROFILE_ARN ?: '',
   idleTerminationMinutes:   env.JENKINS_BUILDER_IDLE_TERMINATION_MINUTES ?: '30',
+  minimumNumberOfInstances: '0'
+  minimumNumberOfSpareInstances: '0'
   initScript:               env.JENKINS_BUILDER_INIT_SCRIPT ?: '',
   instanceCapStr:           env.JENKINS_BUILDER_INSTANCE_CAP,
   jvmopts:                  '',
@@ -38,20 +40,23 @@ def SlaveTemplateParameters = [
   type:                     env.JENKINS_BUILDER_INSTANCE_TYPE ?: 't2.small',
   useDedicatedTenancy:      false,
   useEphemeralDevices:      true,
-  usePrivateDnsName:        true,
+  monitoring:               true,
+  t2Unlimited:              false,
+  maxTotalUses:             '0'
   userData:                 env.JENKINS_BUILDER_USER_DATA ?: '',
   zone:                     env.JENKINS_BUILDER_REGION + 'a'
 ]
 
 def AmazonEC2CloudParameters = [
   cloudName:      env.JENKINS_BUILDER_CLOUD_NAME,
-  credentialsId:  'jenkins-builder-key',
+  credentialsId:         '',
+  sshKeysCredentialsId:  'jenkins-builder-key',
   instanceCapStr: env.JENKINS_BUILDER_INSTANCE_CAP,
   privateKey:     env.JENKINS_BUILDER_PRIVATE_KEY ? new String(env.JENKINS_BUILDER_PRIVATE_KEY.decodeBase64()) : '',
   region:         env.JENKINS_BUILDER_REGION,
   useInstanceProfileForCredentials: false
 ]
-
+// https://github.com/jenkinsci/ec2-plugin/blob/master/src/main/java/hudson/plugins/ec2/SlaveTemplate.java#L336
 SlaveTemplate slaveTemplate = new SlaveTemplate(
   SlaveTemplateParameters.ami,
   SlaveTemplateParameters.zone,
@@ -74,7 +79,8 @@ SlaveTemplate slaveTemplate = new SlaveTemplate(
   SlaveTemplateParameters.subnetId,
   [SlaveTemplateParameters.tags],
   SlaveTemplateParameters.idleTerminationMinutes,
-  SlaveTemplateParameters.usePrivateDnsName,
+  SlaveTemplateParameters.minimumNumberOfInstances,
+  SlaveTemplateParameters.minimumNumberOfSpareInstances
   SlaveTemplateParameters.instanceCapStr,
   SlaveTemplateParameters.iamInstanceProfile,
   SlaveTemplateParameters.deleteRootOnTermination,
@@ -84,7 +90,13 @@ SlaveTemplate slaveTemplate = new SlaveTemplate(
   SlaveTemplateParameters.associatePublicIp,
   SlaveTemplateParameters.customDeviceMapping,
   SlaveTemplateParameters.connectBySSHProcess,
-  SlaveTemplateParameters.connectUsingPublicIp
+  SlaveTemplateParameters.monitoring,
+  SlaveTemplateParameters.t2Unlimited,
+  null,
+  SlaveTemplateParameters.maxTotalUses,
+  SlaveTemplateParameters.connectUsingPublicIp,
+  null,
+  null
 )
 
 AmazonEC2Cloud amazonEC2Cloud = new AmazonEC2Cloud(
@@ -93,6 +105,7 @@ AmazonEC2Cloud amazonEC2Cloud = new AmazonEC2Cloud(
   AmazonEC2CloudParameters.credentialsId,
   AmazonEC2CloudParameters.region,
   AmazonEC2CloudParameters.privateKey,
+  AmazonEC2CloudParameters.sshKeysCredentialsId,
   AmazonEC2CloudParameters.instanceCapStr,
   [slaveTemplate],
   '',
